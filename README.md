@@ -30,11 +30,11 @@ MMD-MA implementation in pytorch with following improvements:
 USAGE: manifold_align_mmd_pytorch.py <input_k1> <input_k2> <result_dir> <num_feat> <sigma> <lambda1> <lambda2>
 
 Run MMD-MA algorithm training to align single-cell datasets:
-<input_k1>: Input kernel for single-cell dataset 1
-<input_k2>: Input kernel for single-cell dataset 2
+<input_k1>: Input kernel for single-cell dataset 1 (in .npy format)
+<input_k2>: Input kernel for single-cell dataset 2 (in .npy format)
 <result_dir>: Directory for saving the alpha and beta weights learned by the algorithm
 <num_feat>: Dimension size of the learned low-dimensional space [Recommended tuning values : 4,5,6]
-<sigma>: Bandwidth paramteter for gaussian kernel calculation, set value to 0.0 to perform automatic calculation
+<sigma>: Bandwidth parameter for gaussian kernel calculation, set value to 0.0 to perform automatic calculation
 <lambda1>: Parameter for penalty term [Recommended tuning values : 1e-03, 1e-04, 1e-05, 1e-06, 1e-07]
 <lambda2>: Parameter for distortion term [Recommended tuning values : 1e-03, 1e-04, 1e-05, 1e-06, 1e-07]
 
