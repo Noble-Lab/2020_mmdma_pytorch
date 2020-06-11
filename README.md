@@ -18,12 +18,12 @@ MMD-MA implementation in pytorch with following improvements:
 * The code is in Python (version 3.7) and uses [Pytorch framework](https://pytorch.org/)
 * We recommend installing all the packages using [conda](https://www.anaconda.com/products/individual)
 * Dependencies: 
-	*`torch`
-	*`cuda`
-	*`numpy`
-	*`matplotlib`
-	*`sklearn`
-* Datasets: Simulation datasets to test run the code can be downloaded from [here]()
+	* `torch`
+	* `cuda`
+	* `numpy`
+	* `matplotlib`
+	* `sklearn`
+* Datasets: Simulation dataset input kernels to test run the code can be downloaded from [here](https://noble.gs.washington.edu/proj/mmd-ma/)
 * Running the MMD-MA code
 
 ```
