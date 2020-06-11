@@ -1,8 +1,9 @@
-#Author: rsingh7
+#Author: Ritambhara Singh (ritambhara@brown.edu)
 #Created on: 21 Nov 2018
 
-#Pytorch implementation of Jie's Tensorflow code
+#Pytorch implementation of MMD-MA Tensorflow code (https://bitbucket.org/noblelab/2019_mmd_wabi/src/master/)
 #Script to perform manifold alignment using Maximum Mean Discrepancy (MMD)
+#Includes GPU capability
 
 import numpy as np
 import math
@@ -25,14 +26,28 @@ from torch.nn.modules.module import Module
 import torch.nn.functional as F
 
 
-USAGE = """USAGE: manifold_align_mmd_pytorch.py input_k1 input_k2 result_dir num_feat sigma lambda1 lambda2"""
-#gpuid"""
+USAGE = """USAGE: manifold_align_mmd_pytorch.py <input_k1> <input_k2> <result_dir> <num_feat> <sigma> <lambda1> <lambda2>
+
+Run MMD-MA algorithm training to align single-cell datasets:
+<input_k1>: Input kernel for single-cell dataset 1
+<input_k2>: Input kernel for single-cell dataset 2
+<result_dir>: Directory for saving the alpha and beta weights learned by the algorithm
+<num_feat>: Dimension size of the learned low-dimensional space [Recommended tuning values : 4,5,6]
+<sigma>: Bandwidth paramteter for gaussian kernel calculation, set value to 0.0 to perform automatic calculation
+<lambda1>: Parameter for penalty term [Recommended tuning values : 1e-03, 1e-04, 1e-05, 1e-06, 1e-07]
+<lambda2>: Parameter for distortion term [Recommended tuning values : 1e-03, 1e-04, 1e-05, 1e-06, 1e-07]
+
+The outputs of the code are alpha and beta weight matrices learned by the algorithm
+
+To obtain the final embeddings:
+Embeddings for single-cell dataset 1 = input_k1 x alpha matrix 
+Embeddings for single-cell dataset 2 = input_k2 x beta matrix
+"""
 
 if (len(sys.argv) < 8):
   sys.stderr.write(USAGE)
   sys.exit(1)
 
-#gpuid = sys.argv[8]
 
 if torch.cuda.is_available():
   device = torch.device("cuda")
@@ -41,7 +56,7 @@ else:
 
 print("Running on",device)
 
-def compute_pairwise_distances(x, y):
+def compute_pairwise_distances(x, y): #function to calculate the pairwise distances
   if not len(x.size()) == len(y.size()) == 2:
     raise ValueError('Both inputs should be matrices.')
 
@@ -52,7 +67,7 @@ def compute_pairwise_distances(x, y):
   diff = (diff ** 2).sum(1)
   return diff.t()
 
-def gaussian_kernel_matrix(x, y, sigmas):
+def gaussian_kernel_matrix(x, y, sigmas): #function to calculate Gaussian kernel
   beta = 1.0 / (2.0 * (sigmas.unsqueeze(1)))
   dist = compute_pairwise_distances(x, y)
   s = beta * (dist.contiguous()).view(1,-1)
@@ -60,7 +75,7 @@ def gaussian_kernel_matrix(x, y, sigmas):
   return (result.contiguous()).view(dist.size())
 
 
-def stream_maximum_mean_discrepancy(x, y,  sigmas, kernel=gaussian_kernel_matrix):
+def stream_maximum_mean_discrepancy(x, y,  sigmas, kernel=gaussian_kernel_matrix): #This function has been implemented  to caculate MMD value for large number of samples (N>5,000)
   n_x = x.shape[0]
   n_y = y.shape[0]
   
@@ -73,7 +88,7 @@ def stream_maximum_mean_discrepancy(x, y,  sigmas, kernel=gaussian_kernel_matrix
     cost = torch.FloatTensor([0.0]).to(device)
   return cost
 
-def maximum_mean_discrepancy(x, y, sigmas, kernel=gaussian_kernel_matrix):
+def maximum_mean_discrepancy(x, y, sigmas, kernel=gaussian_kernel_matrix): #Function to calculate MMD value
 
   cost = (kernel(x, x, sigmas)).mean()
   cost += (kernel(y, y, sigmas)).mean()
@@ -84,7 +99,7 @@ def maximum_mean_discrepancy(x, y, sigmas, kernel=gaussian_kernel_matrix):
   
   return cost
 
-def calc_sigma(x1,x2):
+def calc_sigma(x1,x2): #Automatic sigma calculation 
     const = 8
     mat = np.concatenate((x1,x2))
     dist = []
@@ -97,11 +112,11 @@ def calc_sigma(x1,x2):
     print("Calculated sigma:",sigma)
     return sigma
 
-class manifold_alignment(nn.Module):
+class manifold_alignment(nn.Module): #MMD objective function
 
   def __init__(self, nfeat, num_k1, num_k2, seed):
     super(manifold_alignment, self).__init__()
-    #print("Initializing alpha and beta")
+    #Initializing alpha and beta 
     if torch.cuda.is_available():
       torch.cuda.manual_seed(seed)
     else:
@@ -112,9 +127,8 @@ class manifold_alignment(nn.Module):
     
   def forward(self, k1, k2, ip, sigmas, lambda1, lambda2):
     
-    #mmd = stream_maximum_mean_discrepancy(torch.matmul(k1,self.alpha),torch.matmul(k2,self.beta), sigmas)
     
-    if sigmas == 0:
+    if sigmas == 0: #If the user does not specify sigma values for the kernel calculation, they will be caclulated automatically
       x1 = (torch.matmul(k1,self.alpha)).detach().cpu().numpy()
       x2 = (torch.matmul(k2,self.beta)).detach().cpu().numpy()
       
@@ -122,6 +136,7 @@ class manifold_alignment(nn.Module):
       sigmas = torch.FloatTensor([sigma]).to(device)
     
     mmd = maximum_mean_discrepancy(torch.matmul(k1,self.alpha),torch.matmul(k2,self.beta), sigmas)
+    #mmd = stream_maximum_mean_discrepancy(torch.matmul(k1,self.alpha),torch.matmul(k2,self.beta), sigmas) #remove comment and comment the previous line if number of samples are large (N>5,000)
     
     penalty = lambda1 * ((((torch.matmul(self.alpha.t(),torch.matmul(k1,self.alpha))) - ip).norm(2))
               + (((torch.matmul(self.beta.t(),torch.matmul(k2,self.beta))) - ip).norm(2)))
@@ -198,7 +213,7 @@ def main():
 
     model.train()
   
-    for i in range(10001):
+    for i in range(10001): #Training takes place for 10,000 iterations
     
       optimizer.zero_grad()
       
@@ -220,7 +235,7 @@ def main():
         pen_val.append(math.log(pen_value))
         dist_val.append(math.log(dist_value))
 
-      if (i%200 == 0):
+      if (i%200 == 0): #the weights can be saved every 200 iterations
         weights=[]
     
         for p in model.parameters():
@@ -228,9 +243,8 @@ def main():
             weights.append(p.data)
       
         plot_data(results_dir_seed+"Functions_"+str(seed)+".png",seed,i,obj_val,mmd_val,pen_val,dist_val,nfeat,sigma,lambda_1,lambda_2)
-        #print(seed,i,obj_value,mmd_value,pen_value, dist_value)
 
-        if (i==0 or i==10000):
+        if (i==0 or i==10000): #This saves the weights at the beginning and end of the training
           np.savetxt(results_dir_seed+"alpha_hat_"+str(seed)+"_"+str(i)+".txt", weights[0].cpu().numpy())
           np.savetxt(results_dir_seed+"beta_hat_"+str(seed)+"_"+str(i)+".txt", weights[1].cpu().numpy())  
         
