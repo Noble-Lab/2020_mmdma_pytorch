@@ -1,8 +1,8 @@
 # README #
 
 MMD-MA implementation in pytorch with following improvements:
-* GPU capability
-* Automatic bandwidth parameter selection for gaussian kernel calculation
+(1) GPU capability
+(2) Automatic bandwidth parameter selection for gaussian kernel calculation
 
 ### What is this repository for? ###
 
